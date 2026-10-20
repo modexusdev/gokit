@@ -9,7 +9,8 @@ import (
 
 type responseWriter struct {
 	http.ResponseWriter
-	status int
+	status  int
+	message string
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
@@ -23,6 +24,10 @@ func (rw *responseWriter) Write(data []byte) (int, error) {
 	}
 
 	return rw.ResponseWriter.Write(data)
+}
+
+func (rw *responseWriter) SetLogMessage(message string) {
+	rw.message = message
 }
 
 func (l *Logger) HTTP(next http.Handler) http.Handler {
@@ -42,6 +47,7 @@ func (l *Logger) HTTP(next http.Handler) http.Handler {
 				r.URL.Path,
 				writer.status,
 				time.Since(start),
+				writer.message,
 			)
 		},
 	)
