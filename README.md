@@ -32,6 +32,159 @@ PORT=9500
 
 ---
 
+### crypto
+
+Helpers for authenticated encryption and decryption using AES-256-GCM.
+
+```go
+import "github.com/modexusdev/gokit/crypto"
+```
+
+The package can be used for values that need to be stored encrypted but must later be recoverable, such as voucher codes, API credentials, or other application secrets.
+
+#### Generate a key
+
+`crypto` expects a Base64-encoded 32-byte key.
+
+A suitable key can be generated with OpenSSL:
+
+```bash
+openssl rand -base64 32
+```
+
+Store the generated key securely, for example in an environment variable:
+
+```env
+ENCRYPTION_KEY=<generated-key>
+```
+
+Do not commit encryption keys to source control.
+
+#### Encrypt a value
+
+Use `Encrypt` to encrypt a string:
+
+```go
+key := env.Get(
+    "ENCRYPTION_KEY",
+    "",
+)
+
+encrypted, err := crypto.Encrypt(
+    "SECRET-VALUE-123",
+    key,
+)
+if err != nil {
+    return err
+}
+```
+
+The returned value is Base64 encoded and can safely be stored in a text field:
+
+```text
+YlJQY0...encrypted-data...
+```
+
+A random nonce is generated for every encryption operation. This means encrypting the same value multiple times produces different ciphertext.
+
+#### Decrypt a value
+
+Use `Decrypt` with the same key to recover the original value:
+
+```go
+decrypted, err := crypto.Decrypt(
+    encrypted,
+    key,
+)
+if err != nil {
+    return err
+}
+
+fmt.Println(decrypted)
+```
+
+Output:
+
+```text
+SECRET-VALUE-123
+```
+
+The key used for decryption must be the same key that was used for encryption.
+
+#### Empty values
+
+Empty strings are returned unchanged:
+
+```go
+encrypted, err := crypto.Encrypt(
+    "",
+    key,
+)
+```
+
+The result is:
+
+```text
+""
+```
+
+The same applies to `Decrypt`.
+
+This is useful for optional encrypted fields.
+
+#### Invalid keys and ciphertext
+
+The encryption key must decode to exactly 32 bytes.
+
+Invalid keys return:
+
+```go
+crypto.ErrInvalidKey
+```
+
+Invalid, corrupted, or modified encrypted values return:
+
+```go
+crypto.ErrInvalidCiphertext
+```
+
+Errors can be checked using `errors.Is`:
+
+```go
+value, err := crypto.Decrypt(
+    encrypted,
+    key,
+)
+if errors.Is(
+    err,
+    crypto.ErrInvalidCiphertext,
+) {
+    // Handle invalid or corrupted data.
+}
+```
+
+AES-GCM provides authenticated encryption. If encrypted data is modified after encryption, decryption fails instead of returning corrupted plaintext.
+
+#### Security considerations
+
+Encryption keys should be treated as secrets.
+
+They should:
+
+- be generated using a cryptographically secure random source
+- be stored outside source code
+- not be committed to Git
+- not be exposed to frontend applications
+- not be written to application logs
+
+Losing the encryption key means values encrypted with that key can no longer be recovered.
+
+Changing the key also prevents existing encrypted values from being decrypted unless they are migrated to the new key first.
+
+The package intentionally does not read environment variables itself. Applications provide the key explicitly, keeping `crypto` independent from configuration and allowing it to be used in HTTP servers, CLI applications, background workers, and other Go programs.
+
+---
+
 ### log
 
 Colored application and HTTP request logging.
